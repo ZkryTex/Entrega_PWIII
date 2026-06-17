@@ -1,0 +1,12 @@
+/* Puedes agregar estilos personalizados aquí si lo necesitas */
+/* Por ejemplo, para centrar cosas, o añadir sombras sutiles */
+.card {
+    box-shadow: 0 4px 8px rgba(0,0,0,.05);
+    transition: transform .2s;
+}
+.card:hover {
+    transform: translateY(-5px);
+}
+.dropdown-item {
+    cursor: pointer; /* Para indicar que son clickeables */
+}
