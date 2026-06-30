@@ -15,12 +15,18 @@
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
+                <ul class="navbar-nav ms-auto align-items-center"> 
                     <li class="nav-item">
                         <a class="nav-link active" aria-current="page" href="/">Inicio</a>
                     </li>
-                    <li class="nav-item" id="nav-gestion"> <!-- Agregamos el ID aquí -->
+                    <li class="nav-item" id="nav-gestion"> 
                         <a class="nav-link" href="/gestion">Gestión</a>
+                    </li>
+            
+                    <li class="nav-item ms-2" id="nav-login-item">
+                        <button id="btn-login-trigger" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#loginModal">
+                            Iniciar sesión
+                        </button>
                     </li>
                 </ul>
             </div>
@@ -38,12 +44,38 @@
                 <ul class="dropdown-menu" aria-labelledby="filterDropdown" id="brand-filter-options">
                     <li><a class="dropdown-item filter-btn" href="#" data-brand="all">Todos</a></li>
                     <li><a class="dropdown-item filter-btn" href="#" data-brand="Apple">Apple</a></li>
-                    </ul>
+                </ul>
             </div>
         </div>
 
         <div id="celulares-list" class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
             </div>
+    </div>
+
+    <div class="modal fade" id="loginModal" tabindex="-1" aria-labelledby="loginModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content shadow">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title" id="loginModalLabel">🔑 Autenticación de Administrador</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="login-form">
+                        <div class="mb-3">
+                            <label for="login-email" class="form-label">Usuario</label>
+                            <input type="text" id="login-email" class="form-control" placeholder="admin" required value="admin">
+                        </div>
+                        <div class="mb-3">
+                            <label for="login-password" class="form-label">Contraseña</label>
+                            <input type="password" id="login-password" class="form-control" placeholder="••••••••" required value="123">
+                                        </div>
+                        <div class="d-grid gap-2 mt-4">
+                           <button type="submit" class="btn btn-primary">Ingresar al Sistema</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>

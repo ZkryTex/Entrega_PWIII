@@ -83,7 +83,8 @@ function checkPermissions() {
             const response = await fetch(url, {
                 method: 'PUT',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    ...getAuthHeader() // Importante: Agrega el encabezado de autorización para PUT
                 },
                 body: JSON.stringify(data)
             });
@@ -103,7 +104,10 @@ function checkPermissions() {
     async function deleteData(url) {
         try {
             const response = await fetch(url, {
-                method: 'DELETE'
+                method: 'DELETE',
+                headers: {
+                    ...getAuthHeader() //  ¡Ahora sí está dentro de la propiedad headers!
+                }
             });
             if (!response.ok) {
                 const errorText = await response.text();
@@ -193,26 +197,54 @@ function checkPermissions() {
                     }
                 }
 
-                const cardHtml = `
-                    <div class="col">
-                        <div class="card h-100 shadow-sm">
-                            <div class="card-body">
-                                <h5 class="card-title">${celular.marca} ${celular.modelo}</h5>
-                                <h6 class="card-subtitle mb-2 text-muted">${displayPrecio}</h6>
-                                <p class="card-text">
-                                    RAM: ${celular.RAM || 'N/A'}<br>
-                                    Cámara Trasera: ${celular['cámara trasera'] || 'N/A'}<br>
-                                    Procesador: ${celular.procesador || 'N/A'}<br>
-                                    Pantalla: ${celular['tamanio de la pantalla'] || 'N/A'}
-                                </p>
-                            </div>
-                            <div class="card-footer bg-transparent border-top-0">
-                                <small class="text-muted">Lanzamiento: ${displayLanzamiento}</small>
-                            </div>
-                        </div>
-                    </div>
-                `;
-                celularesListDiv.innerHTML += cardHtml;
+                // 1. Creamos la estructura de contenedores 
+                const colDiv = document.createElement('div');
+                colDiv.className = 'col';
+
+                const cardDiv = document.createElement('div');
+                cardDiv.className = 'card h-100 shadow-sm';
+
+                const cardBody = document.createElement('div');
+                cardBody.className = 'card-body';
+
+                // 2. Creamos los elementos de texto individuales usando textContent (Sanitización automática ante XSS)
+                const titulo = document.createElement('h5');
+                titulo.className = 'card-title';
+                titulo.textContent = `${celular.marca} ${celular.modelo}`;
+
+                const subtitulo = document.createElement('h6');
+                subtitulo.className = 'card-subtitle mb-2 text-muted';
+                subtitulo.textContent = displayPrecio;
+
+                const descripcion = document.createElement('p');
+                descripcion.className = 'card-text';
+
+                // Esto hace que respete los saltos de línea \n sin usar <br>
+                descripcion.style.whiteSpace = 'pre-line'; 
+                descripcion.textContent = `RAM: ${celular.RAM || 'N/A'}\n` +
+                                          `Cámara Trasera: ${celular['cámara trasera'] || 'N/A'}\n` +
+                                          `Procesador: ${celular.procesador || 'N/A'}\n` +
+                                          `Pantalla: ${celular['tamanio de la pantalla'] || 'N/A'}`;
+
+                const cardFooter = document.createElement('div');
+                cardFooter.className = 'card-footer bg-transparent border-top-0';
+
+                const smallLanzamiento = document.createElement('small');
+                smallLanzamiento.className = 'text-muted';
+                smallLanzamiento.textContent = `Lanzamiento: ${displayLanzamiento}`;
+
+                // 3. Ensamblamos el árbol de elementos hijo por hijo (Método seguro del DOM)
+                cardBody.appendChild(titulo);
+                cardBody.appendChild(subtitulo);
+                cardBody.appendChild(descripcion);
+                cardFooter.appendChild(smallLanzamiento);
+
+                cardDiv.appendChild(cardBody);
+                cardDiv.appendChild(cardFooter);
+                colDiv.appendChild(cardDiv);
+
+                // 4. Lo agregamos de forma segura al contenedor general
+                celularesListDiv.appendChild(colDiv);
             });
         }
 
@@ -285,15 +317,27 @@ function checkPermissions() {
                     return;
                 }
                 data.forEach(cliente => {
-                    const row = `
-                        <tr>
-                            <td>${cliente.id}</td>
-                            <td>${cliente.nombre}</td>
-                            <td>${cliente.apellido}</td>
-                            <td>${cliente.dni}</td>
-                        </tr>
-                    `;
-                    clientesTableBody.innerHTML += row;
+                    const tr = document.createElement('tr');
+
+                    const tdId = document.createElement('td');
+                    tdId.textContent = cliente.id;
+
+                    const tdNombre = document.createElement('td');
+                    tdNombre.textContent = cliente.nombre;
+
+                    const tdApellido = document.createElement('td');
+                    tdApellido.textContent = cliente.apellido;
+
+                    const tdDni = document.createElement('td');
+                    tdDni.textContent = cliente.dni;
+
+                    tr.appendChild(tdId);
+                    tr.appendChild(tdNombre);
+                    tr.appendChild(tdApellido);
+                    tr.appendChild(tdDni);
+
+                    clientesTableBody.appendChild(tr);
+
                 });
             } else {
                 clientesTableBody.innerHTML = '<tr><td colspan="4" class="text-center text-danger">Error al cargar clientes.</td></tr>';
@@ -305,6 +349,14 @@ function checkPermissions() {
             const nombre = document.getElementById('cliente-nombre').value;
             const apellido = document.getElementById('cliente-apellido').value;
             const dni = document.getElementById('cliente-dni').value;
+
+            // --- NUEVA VALIDACIÓN EXIGIDA POR LA CONSIGNA ---
+            const dniRegex = /^[0-9]{7,8}$/; // Solo permite entre 7 y 8 números seguidos, sin puntos ni letras
+            if (!dniRegex.test(dni)) {
+                displayMessage('Formato de DNI inválido. Deben ser solo números (entre 7 y 8 dígitos).', 'danger');
+                return; // Frena la ejecución y no envía nada al backend
+            }
+            // ------------------------------------------------
 
             const newCliente = await postData(`${API_BASE_URL}/clientes`, { nombre, apellido, dni });
             if (newCliente) {
@@ -652,7 +704,7 @@ function controlarAccesoVisual() {
     try {
         // 3. Decodificamos y verificamos rol
         const payload = JSON.parse(atob(token.split('.')[1]));
-        console.log("Rol detectado:", payload.role); // Esto te va a confirmar qué sos
+        // console.log("Rol detectado:", payload.role); // Comentado para no mostrar datos sensibles en consola
 
         if (payload.role === 'rol_admin') {
             navGestion.style.display = 'block';
@@ -664,6 +716,46 @@ function controlarAccesoVisual() {
         navGestion.style.display = 'none';
     }
 }
+
+const loginForm = document.getElementById('login-form');
+
+if (loginForm) {
+    loginForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        // Esta variable lee la cajita del HTML (que tiene id="login-email")
+        const inputUsuario = document.getElementById('login-email').value;
+        const password = document.getElementById('login-password').value;
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/login`, { 
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    username: inputUsuario, // <-- CAMBIO CLAVE: Enviamos 'username' en vez de 'email'
+                    password: password 
+                })
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                
+                // Tu backend devuelve { token: "..." }, así que data.token está perfecto
+                const tokenRecibido = data.token || data.accessToken; 
+                localStorage.setItem('accessToken', tokenRecibido);
+                
+                alert('¡Autenticado con éxito como Administrador!');
+                window.location.reload(); 
+            } else {
+                alert('Credenciales incorrectas. Verificá los datos.');
+            }
+        } catch (error) {
+            console.error('Error en el login:', error);
+            alert('No se pudo establecer conexión con el servidor.');
+        }
+    });
+}
+
 
 // Ejecutar inmediatamente y también cuando la página cargue
 controlarAccesoVisual();
