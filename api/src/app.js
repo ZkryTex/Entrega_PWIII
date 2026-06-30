@@ -62,14 +62,17 @@ const limiter = rateLimit({
 app.use('/limitado', limiter);
 
 const users = [
-    { id: 1, username: 'admin', password: '123', role: 'rol_admin' },
-    { id: 2, username: 'user', password: '123', role: 'rol_user' }
+    { id: 1, username: 'admin', email: 'admin@correo.com', password: '123', role: 'rol_admin' },
+    { id: 2, username: 'user', email: 'user@correo.com', password: '123', role: 'rol_user' }
 ];
 
 // Generamos un token
 app.post("/api/login", (req, res) => {
     const { username, password } = req.body;
-    const user = users.find(u => u.username === username && u.password === password);
+    const user = users.find(u =>
+        (u.username === username || u.email === username) &&
+        u.password === password
+    );
 
     if (user) {
         const token = jwt.sign(
@@ -114,26 +117,6 @@ app.get("/api/celulares", verifyToken, (req, res) => {
 
 */
 
-// Solo el Admin puede borrar (DELETE)
-app.delete("/api/celulares/:id", verifyToken, authorizationRole(["rol_admin"]), (req, res) => {
-});
-
-async function fetchData(url) {
-    const token = localStorage.getItem('accessToken'); // Busca el token guardado
-    try {
-        const response = await fetch(url, {
-            headers: {
-                'Authorization': `Bearer ${token}` // Lo envía al servidor
-            }
-        });
-        if (!response.ok) throw new Error('Error en la petición');
-        return await response.json();
-    } catch (error) {
-        console.error('Error:', error);
-        return null;
-    }
-}
-
 // Middleware para autorizar solo a administradores
 const isAdmin = (req, res, next) => {
     // req.user viene de lo que guardaste en el verifyToken
@@ -149,7 +132,6 @@ const isAdmin = (req, res, next) => {
 
 app.post("/api/celulares", verifyToken, isAdmin, (req, res) => { /* agregar */ });
 app.put("/api/celulares/:id", verifyToken, isAdmin, (req, res) => { /* editar */ });
-app.delete("/api/celulares/:id", verifyToken, isAdmin, (req, res) => { /* borrar */ });
 
 
 //Validación y sanitización de datos

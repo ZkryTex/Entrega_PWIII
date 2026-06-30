@@ -155,13 +155,20 @@ router.put('/:id', (req, res) => {
 
 // DELETE a celular (DELETE)
 router.delete('/:id', (req, res) => {
-    const { id } = req.params;
-    db.run('DELETE FROM Celulares WHERE id = ?', id, function(err) {
+    const id = parseInt(req.params.id, 10);
+    console.log(`DELETE /api/celulares/${req.params.id} recibida, parsed id = ${id}`);
+    if (!Number.isInteger(id) || id <= 0) {
+        console.log(`ID inválido al eliminar celular: ${req.params.id}`);
+        return res.status(400).json({ message: 'ID de celular inválido.' });
+    }
+
+    db.run('DELETE FROM Celulares WHERE id = ?', [id], function(err) {
         if (err) {
             console.error(`Error al eliminar celular con ID ${id}:`, err.message);
             res.status(500).json({ error: err.message });
             return;
         }
+        console.log(`DELETE result for id=${id}: changes=${this.changes}`);
         if (this.changes === 0) {
             res.status(404).json({ message: 'Celular no encontrado para eliminar.' });
         } else {

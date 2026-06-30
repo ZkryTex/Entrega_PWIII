@@ -6,6 +6,64 @@ document.addEventListener('DOMContentLoaded', () => {
     return token ? { 'Authorization': `Bearer ${token}` } : {};
 };
 
+    function initializeSession() {
+        const token = localStorage.getItem('accessToken');
+        const sessionActive = sessionStorage.getItem('loggedIn') === 'true';
+
+        // Si hay token guardado pero no hay sesión activa en esta pestaña,
+        // eliminamos el token para iniciar deslogueado.
+        if (token && !sessionActive) {
+            localStorage.removeItem('accessToken');
+        }
+    }
+
+    function updateAuthButtons() {
+        const loginBtn = document.getElementById('btn-login-trigger');
+        const logoutBtn = document.getElementById('btn-logout');
+        const sessionActive = sessionStorage.getItem('loggedIn') === 'true';
+        const token = localStorage.getItem('accessToken');
+        let isAdmin = false;
+
+        if (token) {
+            try {
+                const payload = JSON.parse(atob(token.split('.')[1]));
+                isAdmin = payload.role === 'rol_admin';
+            } catch (error) {
+                isAdmin = false;
+            }
+        }
+
+        if (loginBtn && logoutBtn) {
+            if (sessionActive && token && isAdmin) {
+                loginBtn.classList.add('d-none');
+                logoutBtn.classList.remove('d-none');
+            } else {
+                loginBtn.classList.remove('d-none');
+                logoutBtn.classList.add('d-none');
+            }
+        }
+    }
+
+    function setupLogout() {
+        const logoutBtn = document.getElementById('btn-logout');
+        if (!logoutBtn) return;
+
+        logoutBtn.addEventListener('click', () => {
+            localStorage.removeItem('accessToken');
+            sessionStorage.removeItem('loggedIn');
+            updateAuthButtons();
+            if (window.location.pathname === '/gestion') {
+                window.location.href = '/';
+            } else {
+                window.location.reload();
+            }
+        });
+    }
+
+    initializeSession();
+    setupLogout();
+    updateAuthButtons();
+
     // --- Funciones Comunes para la Página Principal y Gestión ---
     async function fetchData(url) {
         try {
@@ -294,7 +352,7 @@ function checkPermissions() {
         const addVentaForm = document.getElementById('add-venta-form');
         const ventaProductoSelect = document.getElementById('venta-producto-id');
         const ventaClienteInput = document.getElementById('venta-cliente-input');
-        const ventaClienteSelect = document.getElementById('venta-cliente-id');
+        const ventaClienteDatalist = document.getElementById('venta-cliente-list');
 
         const celularesCrudTableBody = document.getElementById('celulares-crud-table-body');
         const addCelularForm = document.getElementById('add-celular-form');
@@ -370,29 +428,73 @@ function checkPermissions() {
         let allClientes = [];
         async function loadAllClientesForSearch() {
             allClientes = await fetchData(`${API_BASE_URL}/clientes`);
+            if (allClientes) {
+                populateClienteDatalist();
+            }
         }
         loadAllClientesForSearch();
 
+        function populateClienteDatalist() {
+            if (!allClientes || !Array.isArray(allClientes)) {
+                ventaClienteDatalist.innerHTML = '';
+                return;
+            }
 
-        ventaClienteInput.addEventListener('input', (event) => {
-            const searchTerm = event.target.value.toLowerCase();
-            const filteredClients = allClientes.filter(client =>
-                client.dni.toLowerCase().includes(searchTerm) ||
-                client.nombre.toLowerCase().includes(searchTerm) ||
-                client.apellido.toLowerCase().includes(searchTerm)
-            );
+            ventaClienteDatalist.innerHTML = '';
+            allClientes.forEach(client => {
+                const option = document.createElement('option');
+                option.value = client.dni;
+                option.textContent = `${client.nombre} ${client.apellido}`;
+                ventaClienteDatalist.appendChild(option);
+            });
+        }
 
-            ventaClienteSelect.innerHTML = '<option value="">Selecciona un cliente</option>';
-            if (filteredClients.length > 0 && searchTerm.length > 0) {
-                ventaClienteSelect.style.display = 'block';
-                filteredClients.forEach(client => {
-                    const option = document.createElement('option');
-                    option.value = client.id;
-                    option.textContent = `${client.nombre} ${client.apellido} (DNI: ${client.dni})`;
-                    ventaClienteSelect.appendChild(option);
-                });
-            } else {
-                ventaClienteSelect.style.display = 'none';
+        ventaClienteInput.addEventListener('blur', () => {
+            const dniValue = ventaClienteInput.value.trim();
+            if (dniValue && !/^[0-9]{7,8}$/.test(dniValue)) {
+                displayMessage('El DNI debe tener entre 7 y 8 dígitos numéricos.', 'danger');
+            }
+        });
+
+        addVentaForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const productoId = ventaProductoSelect.value;
+            const fecha = document.getElementById('venta-fecha').value;
+            const clienteDni = ventaClienteInput.value.trim();
+
+            if (!clienteDni || !productoId || !fecha) {
+                displayMessage('Por favor, completa todos los campos de la venta.', 'warning');
+                return;
+            }
+
+            if (!/^[0-9]{7,8}$/.test(clienteDni)) {
+                displayMessage('El DNI del cliente debe tener entre 7 y 8 dígitos numéricos.', 'danger');
+                return;
+            }
+
+            if (!allClientes || allClientes.length === 0) {
+                await loadAllClientesForSearch();
+            }
+
+            const selectedClient = allClientes.find(client => String(client.dni).trim() === clienteDni);
+            if (!selectedClient) {
+                displayMessage('No se encontró un cliente con ese DNI. Usa un cliente existente.', 'danger');
+                return;
+            }
+
+            const formattedDate = new Date(fecha).toISOString().slice(0, 19).replace('T', ' ');
+
+            const newVenta = await postData(`${API_BASE_URL}/ventas`, {
+                cliente_id: parseInt(selectedClient.id),
+                producto_id: parseInt(productoId),
+                fecha: formattedDate
+            });
+
+            if (newVenta) {
+                displayMessage('Venta registrada exitosamente!', 'success');
+                addVentaForm.reset();
+                ventaClienteInput.value = '';
+                loadVentas();
             }
         });
 
@@ -451,35 +553,6 @@ function checkPermissions() {
                 ventaProductoSelect.innerHTML = '<option value="">Error al cargar celulares</option>';
             }
         }
-
-
-        addVentaForm.addEventListener('submit', async (event) => {
-            event.preventDefault();
-            const clienteId = ventaClienteSelect.value;
-            const productoId = ventaProductoSelect.value;
-            const fecha = document.getElementById('venta-fecha').value;
-
-            if (!clienteId || !productoId || !fecha) {
-                displayMessage('Por favor, completa todos los campos de la venta.', 'warning');
-                return;
-            }
-
-            const formattedDate = new Date(fecha).toISOString().slice(0, 19).replace('T', ' ');
-
-            const newVenta = await postData(`${API_BASE_URL}/ventas`, {
-                cliente_id: parseInt(clienteId),
-                producto_id: parseInt(productoId),
-                fecha: formattedDate
-            });
-
-            if (newVenta) {
-                displayMessage('Venta registrada exitosamente!', 'success');
-                addVentaForm.reset();
-                ventaClienteInput.value = '';
-                ventaClienteSelect.style.display = 'none';
-                loadVentas();
-            }
-        });
 
 
         // --- Funciones para Gestión de Celulares (CRUD) ---
@@ -695,9 +768,12 @@ function controlarAccesoVisual() {
 
     const token = localStorage.getItem('accessToken');
 
-    // 2. Si no hay token, ocultamos y salimos
+    // 2. Si no hay token, ocultamos y redirigimos si estamos en gestión
     if (!token) {
         navGestion.style.display = 'none';
+        if (window.location.pathname === '/gestion') {
+            window.location.href = '/';
+        }
         return;
     }
 
@@ -710,10 +786,16 @@ function controlarAccesoVisual() {
             navGestion.style.display = 'block';
         } else {
             navGestion.style.display = 'none';
+            if (window.location.pathname === '/gestion') {
+                window.location.href = '/';
+            }
         }
     } catch (error) {
         console.error("Error al procesar el token:", error);
         navGestion.style.display = 'none';
+        if (window.location.pathname === '/gestion') {
+            window.location.href = '/';
+        }
     }
 }
 
@@ -743,7 +825,9 @@ if (loginForm) {
                 // Tu backend devuelve { token: "..." }, así que data.token está perfecto
                 const tokenRecibido = data.token || data.accessToken; 
                 localStorage.setItem('accessToken', tokenRecibido);
+                sessionStorage.setItem('loggedIn', 'true');
                 
+                updateAuthButtons();
                 alert('¡Autenticado con éxito como Administrador!');
                 window.location.reload(); 
             } else {
